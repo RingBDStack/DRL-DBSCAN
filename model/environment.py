@@ -10,6 +10,20 @@ import numpy as np
 
 def get_reward(extract_features, extract_labels, cur_labels, cur_cluster_num, extract_data_num, extract_masks,
                bump_flag, buffer, e):
+    """
+    get the reward of the agent
+    :param extract_features:
+    :param extract_labels:
+    :param cur_labels:
+    :param cur_cluster_num:
+    :param extract_data_num:
+    :param extract_masks:
+    :param bump_flag:
+    :param buffer:
+    :param e:
+    :return:
+    """
+
     beta = 0.00
     lamda = 0.00
     M = 3
@@ -75,6 +89,7 @@ def get_state(extract_features, cur_labels, cur_cluster_num, extract_data_num, c
 
 
 def convergence_judgment(action_log):
+    """Judge whether convergence condition is reached"""
     new_action_log = action_log.argmax(axis=0)
     if new_action_log == 4:
         return True
@@ -82,6 +97,7 @@ def convergence_judgment(action_log):
         return False
 
 def getLocalState(X):
+    """get the local state of the environment"""
     dist = np.zeros((X.shape[0], X.shape[0]))
     #center_features = np.average(X, axis=0)
     #print(center_features)
