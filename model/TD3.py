@@ -13,7 +13,17 @@ import torch.nn.functional as F
 
 class Actor(nn.Module):
     def __init__(self, global_state_dim, local_state_dim, action_dim, max_action, device):
+        """
+        The structure of actor
+        :param global_state_dim: dimension of the global state
+        :param local_state_dim: dimension of the local state
+        :param action_dim: dimension of the action
+        :param max_action: clip the action step
+        :param device: cuda
+        """
+
         super(Actor, self).__init__()
+
         self.W = nn.Linear(global_state_dim, 32)
         self.U = nn.Linear(local_state_dim, 32)
         self.att = nn.Linear(64, 1)
@@ -26,6 +36,12 @@ class Actor(nn.Module):
         self.device = device
 
     def forward(self, global_states, local_states):
+        """
+        forward function of the Actor
+        :param global_states: global states of the environment
+        :param local_states: local states of the environment
+        :return: max_action * attention coefficient
+        """
         # att
         states = torch.zeros((global_states.shape[0], 64))
         for i, global_state, local_state in zip(range(global_states.shape[0]), global_states, local_states):
@@ -52,6 +68,13 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, global_state_dim, local_state_dim, action_dim, device):
+        """
+        The structure of critic
+        :param global_state_dim: dimension of the global state
+        :param local_state_dim: dimension of the local state
+        :param action_dim: dimension of the action
+        :param device: cuda
+        """
         super(Critic, self).__init__()
         self.W = nn.Linear(global_state_dim, 32)
         self.U = nn.Linear(local_state_dim, 32)
@@ -70,7 +93,13 @@ class Critic(nn.Module):
         self.device = device
 
     def forward(self, global_states, local_states, actions):
-        # att
+        """
+        forward function of the Critic
+        :param global_states: global states of the environment
+        :param local_states: local states of the environment
+        :param actions
+        :return: actions * attention coefficient
+        """
         states = torch.zeros((global_states.shape[0], 64))
         for i, global_state, local_state in zip(range(global_states.shape[0]), global_states, local_states):
             w_global_state = self.W(global_state)
@@ -130,8 +159,13 @@ class Critic(nn.Module):
 
 class ReplayBuffer(object):
     def __init__(self, action_dim, max_size=int(1e6)):
+        """
+        initialize the replay buffer of TD3
+        :param action_dim: dimension of the action
+        :param max_size: max size of the action dimension
+        """
         self.max_size = max_size
-        self.ptr = 0
+        self.ptr = 0  # pointer
         self.size = 0
 
         self.global_state = [[] for _ in range(max_size)]
@@ -145,6 +179,14 @@ class ReplayBuffer(object):
         self.device = torch.device("cpu")
 
     def add(self, states, action, next_states, reward, done):
+        """
+        add the new quintuple to the buffer
+        :param states: global state and local state
+        :param action: action choosed by the agent
+        :param next_states: the new state of the environment after the action has been performed
+        :param reward: action reward given by the environment
+        :param done: flag of game completion status
+        """
         global_state, local_state = states[0], states[1]
         next_global_state, next_local_state = next_states[0], next_states[1]
         self.global_state[self.ptr] = list(global_state)
@@ -159,6 +201,11 @@ class ReplayBuffer(object):
         self.size = min(self.size + 1, self.max_size)
 
     def sample(self, batch_size):
+        """
+        sample batch size quintuple from the replay buffer
+        :param batch_size: number of the quintuple
+        :return: sample batch size quintuple
+        """
         ind = np.random.randint(0, self.size, size=batch_size)
 
         return (
@@ -180,6 +227,19 @@ class Skylark_TD3():
             policy_noise=0.2,
             noise_clip=0.5,
             policy_freq=2):
+        """
+        TD3 framework
+        :param global_state_dim: dimension of the global state
+        :param local_state_dim: dimension of the local state
+        :param action_dim: dimension of the action
+        :param max_action: clip the action step
+        :param device_setting: cuda
+        :param gamma:
+        :param tau:
+        :param policy_noise:
+        :param noise_clip: clip the noise
+        :param policy_freq:
+        """
 
         # Varies by environment
         self.global_state_dim = global_state_dim
@@ -188,11 +248,13 @@ class Skylark_TD3():
         self.max_action = max_action
         self.device = device_setting
 
+        # initialize the Actor and target Actor of the TD3 framework
         self.actor = Actor(self.global_state_dim, self.local_state_dim,
                            self.action_dim, self.max_action, self.device).to(self.device)
         self.actor_target = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=3e-4)
 
+        # initialize the Critic and target Critic of the TD3 framework
         self.critic = Critic(self.global_state_dim, self.local_state_dim,
                              self.action_dim, self.device).to(self.device)
         self.critic_target = copy.deepcopy(self.critic)
@@ -209,6 +271,12 @@ class Skylark_TD3():
         self.total_iteration = 0
 
     def select_action(self, states):
+        """
+        choose action through the Actor
+        :param states: global state and local state
+        :return: action attention feature
+        """
+
         global_states = [states[0]]
         local_states = [states[1]]
         global_states_ = torch.FloatTensor(global_states).to(self.device)
@@ -217,6 +285,12 @@ class Skylark_TD3():
         return self.actor(global_states_, local_states_).cpu().data.numpy().flatten()
 
     def learn(self, replay_buffer, batch_size=16):
+        """
+        learning process of the agent
+        :param replay_buffer: store the quintuple
+        :param batch_size: batch size
+        """
+
         self.total_iteration += 1
 
         # Sample replay buffer
@@ -229,6 +303,7 @@ class Skylark_TD3():
                     torch.randn_like(action) * self.policy_noise
             ).clamp(-self.noise_clip, self.noise_clip)
 
+            # use target actor to choose next action
             next_action = (
                     self.actor_target(next_global_state, next_local_state) + noise
             ).clamp(0, self.max_action)
