@@ -80,7 +80,7 @@ if __name__ == '__main__':
     print("Using CUDA:  " + str(use_cuda), flush=True)
     print("Running on:  " + str(args.data_path), flush=True)
 
-    # load idx_reward, features and labels
+    # get sample serial numbers for rewards, out-of-order data features and labels
     if "Shape" in args.data_path:
         idx_reward, features, labels = load_data_shape(args.data_path, args.train_size)
         idx_reward, features, labels = [idx_reward], [features], [labels]
@@ -88,20 +88,20 @@ if __name__ == '__main__':
         idx_reward, features, labels = load_data_stream(args.data_path, args.train_size,
                                                         args.block_num, args.block_size)
 
-    # generate parameter space
+    # generate parameter space size, step size, starting point of the first layer, limit bound
     print("Train size:  " + str(args.train_size), flush=True)
     p_size, p_step, p_center, p_bound = generate_parameter_space(features[0], args.layer_num,
                                                                  args.eps_size, args.min_size,
                                                                  args.data_path)
 
-    # build a multi-layer agent collection
+    # build a multi-layer agent collection, each layer has an independent agent
     agents = []
     for l in range(0, args.layer_num):
         drl = DrlDbscan(p_size, p_step[l], p_center, p_bound, args.device, args.batch_size,
                         args.step_num, features[0].shape[1])
         agents.append(drl)
 
-    # training
+    # Train agents with serialized data blocks
     for b in range(0, args.block_num):
         # log path
         if not os.path.exists(args.log_path + '/Block' + str(b)):
@@ -111,20 +111,27 @@ if __name__ == '__main__':
         sys.stdout = std
         sys.stderr = std
 
-        # k-means
+        # compare with the result of Kmeans
         k_nmi = kmeans_metrics(features[b], labels[b])
 
         final_reward_test = [0, p_center, 0]
         label_dic_test = set()
+
+        # test each layer agent
         for l in range(0, args.layer_num):
             agent = agents[l]
             print("[ Testing Layer {0} ]".format(l), flush=True)
+
             # update starting point
             print("Resetting the parameter space......", flush=True)
             agent.reset(final_reward_test)
+
+            # testing
             cur_labels, cur_cluster_num, p_log = agent.detect(features[b], collections.OrderedDict())
             final_reward_test = [0, p_log[-1], 0]
             d_nmi, d_ami, d_ari = dbscan_metrics(labels[b], cur_labels)
+
+            # update log
             for p in p_log:
                 label_dic_test.add(str(p[0]) + str("+") + str(p[1]))
         with open(args.log_path + '/Block' + str(b) + '/0_test.txt', 'a') as f:
@@ -135,6 +142,8 @@ if __name__ == '__main__':
         max_reward = [0, p_center, 0]
         label_dic = collections.OrderedDict()
         first_meet_num = 0
+
+        # train each layer agent
         for l in range(0, args.layer_num):
             agent = agents[l]
             agent.reset(max_max_reward)
@@ -147,25 +156,28 @@ if __name__ == '__main__':
                       '                Block {0}, Layer {1}, Episode {2}                    '
                       '\n+---------------------------------------------------------------+\n'.format(b, l, i)
                       )
-                # train
+
+                # begin training process
                 print(len(label_dic))
                 print("[ Training Layer {0} ]".format(l), flush=True)
                 print("The size of Label Hash is: {0}".format(len(label_dic)), flush=True)
                 p_logs = np.array([[], []])
                 nmi_logs = np.array([])
+
                 # update starting point
                 print("Resetting the parameter space......", flush=True)
                 agent.reset0()
+
                 # train the l-th layer
                 print("Training the {0}-th layer agent......".format(l), flush=True)
                 cur_labels, cur_cluster_num, p_log, nmi_log, max_reward = agent.train(i, idx_reward[b], features[b],
                                                                                       labels[b], label_dic,
                                                                                       args.reward_factor)
+
+                # update log
                 p_logs = np.hstack((p_logs, np.array(list(zip(*p_log)))))
                 nmi_logs = np.hstack((nmi_logs, np.array(nmi_log)))
                 d_nmi, d_ami, d_ari = dbscan_metrics(labels[b], cur_labels)
-
-                # log
                 with open(args.log_path + '/Block' + str(b) + time_log + '/init_log.txt', 'a') as f:
                     f.write('episode=' + str(i) + ', layer=' + str(l) + ',K-Means NMI=' + str(k_nmi) + '\n')
                     f.write(str(p_logs) + '\n')
@@ -175,9 +187,10 @@ if __name__ == '__main__':
                     cur_hash_size = len(label_dic)
                 max_max_reward_logs.append(max_max_reward[0])
 
-                # test
+                # test each layer agent once again
                 print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n', flush=True)
                 print("[ Testing Layer {0} ]".format(l), flush=True)
+
                 # update starting point
                 print("Resetting the parameter space......", flush=True)
                 agent.reset0()
@@ -224,6 +237,7 @@ if __name__ == '__main__':
         with open(args.log_path + '/Block' + str(b) + '/8_all_num.txt', 'a') as f:
             f.write(str(len(label_dic)) + '\n')
 
+        # evaluate clustering result
         max_reward_nmi = 0
         max_nmi = 0
         max_nmi_logs = []
