@@ -12,8 +12,22 @@ from model.environment import get_reward, get_state, convergence_judgment
 
 
 class DrlDbscan:
+    """
+        define our deep-reinforcement learning dbscan class
 
+    """
     def __init__(self, p_size, p_step, p_center, p_bound, device, batch_size, step_num, dim):
+        """
+        initialize the reinforcement learning agent
+        :param p_size: parameter space size
+        :param p_step: step size
+        :param p_center: starting point of the first layer
+        :param p_bound: limit bound for the two parameter spaces
+        :param device: cuda
+        :param batch_size: batch size
+        :param step_num: Maximum number of steps per RL game
+        :param dim: dimension of feature
+        """
 
         # TD3
         self.agent = Skylark_TD3(global_state_dim=7, local_state_dim=dim+2, action_dim=5,
@@ -22,29 +36,37 @@ class DrlDbscan:
         self.batch_size = batch_size
         self.step_num = step_num
 
-        # parameter space
+        # parameter space: p_center, p_size, p_step, p_bound0
         self.p_center = list(p_center)
         self.p_size, self.p_step, self.p_bound0 = list(p_size), list(p_step), list(p_bound)
         self.p_bound = self.get_parameter_space()
 
+        # cur_p: current parameter
         self.cur_p = list(p_center)
+        # logs for score, reward, parameter, action, nmi
         self.score_log, self.reward_log, self.im_reward_log, self.p_log, self.action_log, self.nmi_log = [], [], [], \
                                                                                                          [], [], []
 
         self.max_reward = [0, list(p_center), 0]
 
     def reset0(self):
+        """
+        update the new parameter space and related records
+        """
+       self.cur_p = list(self.p_center)
+       self.score_log, self.reward_log, self.im_reward_log, self.p_log, self.action_log, self.nmi_log = [], [], [], \
+                                                                                                        [], [], []
 
-        self.cur_p = list(self.p_center)
-        self.score_log, self.reward_log, self.im_reward_log, self.p_log, self.action_log, self.nmi_log = [], [], [], \
-                                                                                                         [], [], []
+       print("The starting point of the parameter is:  " + str(self.p_center), flush=True)
+       print("The parameter space boundary is:  " + str(self.p_bound), flush=True)
+       print("The size of the parameter space is:  " + str(self.p_size), flush=True)
+       print("The step of the parameter space is:  " + str(self.p_step), flush=True)
 
-        print("The starting point of the parameter is:  " + str(self.p_center), flush=True)
-        print("The parameter space boundary is:  " + str(self.p_bound), flush=True)
-        print("The size of the parameter space is:  " + str(self.p_size), flush=True)
-        print("The step of the parameter space is:  " + str(self.p_step), flush=True)
-
-    def reset(self, max_reward):
+   def reset(self, max_reward):
+       """
+        reset the environment
+        :param max_reward: record the max reward
+        """
 
         self.p_center = list(max_reward[1])
         self.p_bound = self.get_parameter_space()
@@ -59,6 +81,10 @@ class DrlDbscan:
         print("The step of the parameter space is:  " + str(self.p_step), flush=True)
 
     def get_parameter_space(self):
+        """
+        get parameter space of the current layer
+        :return: parameter space
+        """
 
         p_bound = [[max(self.p_center[i] - self.p_step[i] * int(self.p_size[i] / 2), self.p_bound0[i][0]),
                     min(self.p_center[i] + self.p_step[i] * int(self.p_size[i] / 2), self.p_bound0[i][1])]
@@ -83,6 +109,7 @@ class DrlDbscan:
         for i in range(2):
             new_p[i] = cur_p[i] - self.p_step[i] * new_action[0 + 2 * i] + \
                        self.p_step[i] * new_action[1 + 2 * i]
+            # bump flags for helping judge whether our new parameters out of space
             if new_p[i] < self.p_bound[i][0]:
                 new_p[i] = self.p_bound[i][0]
                 bump_flag[i] = -1
@@ -92,6 +119,12 @@ class DrlDbscan:
         return new_p, bump_flag
 
     def stop_processing(self, buffer, final_p, max_p):
+        """
+        Sample training data and store
+        :param buffer: store historical data for training
+        :param final_p: reward_factor
+        :param max_p: 1 - reward_factor
+        """
         buffer.append([self.score_log[-2], self.action_log[-1], self.score_log[-1],
                        self.reward_log[-1], self.im_reward_log[-1]])
         final_reward = buffer[-1][4]
@@ -113,6 +146,18 @@ class DrlDbscan:
                 self.agent.learn(self.replay_buffer, self.batch_size)
 
     def train(self, ii, extract_masks, extract_features, extract_labels, label_dic, reward_factor):
+
+        """
+        Train DRL-DBSCAN: RL searching for parameters
+        :param ii: episode_num
+        :param extract_masks: sample serial numbers for rewards
+        :param extract_features: features
+        :param extract_labels: labels
+        :param label_dic: records for parameters and its clustering results (cur_labels)
+        :param reward_factor: factors for final reward
+
+        :return: cur_labels, cur_cluster_num, self.p_log, self.nmi_log, self.max_reward
+        """
 
         extract_data_num = extract_features.shape[0]
 
@@ -211,6 +256,13 @@ class DrlDbscan:
         return cur_labels, cur_cluster_num, self.p_log, self.nmi_log, self.max_reward
 
     def detect(self, extract_features, label_dic):
+        """
+                            Detect DRL-DBSCAN:
+                            :param extract_features: features
+                            :param label_dic: records for parameters and its clustering results (cur_labels)
+
+                            :return: cur_labels, cur_cluster_num, p_log
+                        """
 
         extract_data_num = extract_features.shape[0]
 
