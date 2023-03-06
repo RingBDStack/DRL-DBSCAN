@@ -1,0 +1,34 @@
+Train size:  0.2
+Critic<
+  (W): Dense<input_channels=7, output_channels=32, has_bias=True>
+  (U): Dense<input_channels=4, output_channels=32, has_bias=True>
+  (att): Dense<input_channels=64, output_channels=1, has_bias=True>
+  (l1): Dense<input_channels=69, output_channels=256, has_bias=True>
+  (l2): Dense<input_channels=256, output_channels=256, has_bias=True>
+  (l3): Dense<input_channels=256, output_channels=1, has_bias=True>
+  (l4): Dense<input_channels=69, output_channels=256, has_bias=True>
+  (l5): Dense<input_channels=256, output_channels=256, has_bias=True>
+  (l6): Dense<input_channels=256, output_channels=1, has_bias=True>
+  >
+Critic<
+  (W): Dense<input_channels=7, output_channels=32, has_bias=True>
+  (U): Dense<input_channels=4, output_channels=32, has_bias=True>
+  (att): Dense<input_channels=64, output_channels=1, has_bias=True>
+  (l1): Dense<input_channels=69, output_channels=256, has_bias=True>
+  (l2): Dense<input_channels=256, output_channels=256, has_bias=True>
+  (l3): Dense<input_channels=256, output_channels=1, has_bias=True>
+  (l4): Dense<input_channels=69, output_channels=256, has_bias=True>
+  (l5): Dense<input_channels=256, output_channels=256, has_bias=True>
+  (l6): Dense<input_channels=256, output_channels=1, has_bias=True>
+  >
+Critic<
+  (W): Dense<input_channels=7, output_channels=32, has_bias=True>
+  (U): Dense<input_channels=4, output_channels=32, has_bias=True>
+  (att): Dense<input_channels=64, output_channels=1, has_bias=True>
+  (l1): Dense<input_channels=69, output_channels=256, has_bias=True>
+  (l2): Dense<input_channels=256, output_channels=256, has_bias=True>
+  (l3): Dense<input_channels=256, output_channels=1, has_bias=True>
+  (l4): Dense<input_channels=69, output_channels=256, has_bias=True>
+  (l5): Dense<input_channels=256, output_channels=256, has_bias=True>
+  (l6): Dense<input_channels=256, output_channels=1, has_bias=True>
+  >
